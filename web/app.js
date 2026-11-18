@@ -312,7 +312,10 @@ function art() {
 }
 function render() {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-  by("lang").textContent = lang === "en" ? "中文" : "English";
+  by("lang").setAttribute("aria-label", t("Language", "语言"));
+  for (const option of by("lang").querySelectorAll("button")) {
+    option.setAttribute("aria-pressed", String(option.dataset.lang === lang));
+  }
   by("account").textContent = userName() || t("Sign in", "登录");
   by("nav").innerHTML = Object.entries(names())
     .map(
@@ -663,8 +666,10 @@ document.addEventListener("submit", async (e) => {
     submit.disabled = false;
   }
 });
-by("lang").onclick = () => {
-  lang = lang === "en" ? "zh" : "en";
+by("lang").onclick = (event) => {
+  const option = event.target.closest("button[data-lang]");
+  if (!option || option.dataset.lang === lang) return;
+  lang = option.dataset.lang;
   localStorage.setItem("course-language", lang);
   render();
   if (modalType) drawModal();

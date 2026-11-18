@@ -114,7 +114,32 @@ footer {
   padding: 9px 15px;
 }
 .tools #lang {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #d5e0da;
+  border-radius: 8px;
+  background: #f3f6f4;
+}
+#lang button {
+  min-width: 31px;
+  height: 27px;
+  padding: 0 5px;
+  border-radius: 5px;
+  color: #51665c;
+  font: 650 12px/1 ui-monospace, Consolas, monospace;
+}
+#lang span {
+  color: #81958a;
+  font: 12px/1 ui-monospace, Consolas, monospace;
+}
+#lang button[aria-pressed="true"] {
+  color: white;
+  background: #164c40;
+}
+#lang button[aria-pressed="false"]:hover {
+  background: #e2eae5;
 }
 .bar nav {
   display: flex;

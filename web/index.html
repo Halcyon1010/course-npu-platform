@@ -17,8 +17,12 @@
         >
         <nav id="nav"></nav>
         <div class="tools">
-          <button id="lang" aria-label="Switch language">中文</button
-          ><button id="account" class="btn compact"></button>
+          <div id="lang" role="group" aria-label="Language">
+            <button type="button" data-lang="zh" lang="zh-CN" aria-label="ZH · 中文" aria-pressed="false">ZH</button>
+            <span aria-hidden="true">/</span>
+            <button type="button" data-lang="en" lang="en" aria-label="EN · English" aria-pressed="true">EN</button>
+          </div>
+          <button id="account" class="btn compact"></button>
         </div>
       </div>
     </header>
