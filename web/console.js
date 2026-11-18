@@ -7,6 +7,7 @@ export function operationsView({
   data,
   staff,
   canSwitchQueue,
+  processFilter,
 }) {
   const titles = {
     queue: t("Training queue", "训练队列"),
@@ -87,10 +88,11 @@ export function operationsView({
       t("Runtime", "运行时长"),
       t("Inspection", "巡检状态"),
       t("Extension", "延期情况"),
+      t("Action", "操作"),
     ];
     body = records.map((r) => {
       const mins = Math.floor((at - r.started) / 60),
-        extended = r.until > at;
+        extended = r.extensionActive;
       const elapsed =
         Math.floor(mins / 60) +
         t("h ", " 小时 ") +
@@ -114,7 +116,19 @@ export function operationsView({
         "<code>" + r.pid + "</code>",
         elapsed,
         status,
-        ext,
+        ext +
+          (r.reason
+            ? '<span class="extension-note">' +
+              esc(r.reason) +
+              " · " +
+              esc(r.approvedBy) +
+              "</span>"
+            : ""),
+        '<button type="button" class="btn light" data-extend="' +
+          esc(r.key) +
+          '">' +
+          t("Extend", "设置延期") +
+          "</button>",
       ];
     });
   } else {
@@ -156,9 +170,14 @@ export function operationsView({
         "Debug telemetry is awaiting hardware integration.",
         "等待接入调试节点的进程数据。",
       )
-    : section === "inbox"
-      ? t("No suggestions received yet.", "暂未收到建议。")
-      : t("No jobs waiting for training cards.", "目前没有等待训练卡的任务。");
+    : section === "processes"
+      ? t("No matching processes.", "没有匹配的进程。")
+      : section === "inbox"
+        ? t("No suggestions received yet.", "暂未收到建议。")
+        : t(
+            "No jobs waiting for training cards.",
+            "目前没有等待训练卡的任务。",
+          );
   const table =
     '<div class="tablebox"><div class="table-scroll"><table><thead><tr>' +
     headers.map((h) => '<th scope="col">' + h + "</th>").join("") +
@@ -196,5 +215,66 @@ export function operationsView({
           : t("Show sample queue", "查看模拟队列")) +
         "</button></p>"
       : "";
-  return heading + nav + caption + details + table + pager + switchQueue;
+  const filter =
+    section === "processes" && data.connected
+      ? '<form id="process-filter" class="process-filter"><label>' +
+        id +
+        '<input name="student" maxlength="40" value="' +
+        esc(processFilter.student) +
+        '"></label><label>PID<input name="pid" inputmode="numeric" pattern="[0-9]*" value="' +
+        esc(processFilter.pid) +
+        '"></label><button class="btn">' +
+        t("Find", "查找") +
+        '</button><button type="button" class="btn light" data-clear-filter>' +
+        t("Clear", "清除") +
+        "</button></form>"
+      : "";
+  return (
+    heading + nav + caption + details + filter + table + pager + switchQueue
+  );
+}
+
+export function extensionForm({ t, esc, time, process, snapshotTime }) {
+  const minimum = new Date(
+    (Math.floor(
+      Math.max(Date.now() / 1000, snapshotTime, process.until || 0) / 60,
+    ) +
+      1) *
+      60000,
+  );
+  const localMin = new Date(
+    minimum.getTime() - minimum.getTimezoneOffset() * 60000,
+  )
+    .toISOString()
+    .slice(0, 16);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return (
+    "<p><b>" +
+    esc(process.student) +
+    "</b> · " +
+    esc(process.node) +
+    " · PID " +
+    process.pid +
+    "</p>" +
+    (process.until
+      ? '<p class="help">' +
+        t("Current deadline", "当前截止时间") +
+        " · " +
+        time(process.until) +
+        "</p>"
+      : "") +
+    '<form id="extend-process"><label for="until">' +
+    t("Extend until", "延长至") +
+    " (" +
+    esc(zone) +
+    ')</label><input type="datetime-local" id="until" name="until" min="' +
+    localMin +
+    '" required>' +
+    '<label for="reason">' +
+    t("Reason", "延期原因") +
+    '</label><textarea id="reason" name="reason" rows="3" maxlength="500" required></textarea>' +
+    '<div class="actions"><button class="btn">' +
+    t("Save extension", "保存延期") +
+    "</button></div></form>"
+  );
 }

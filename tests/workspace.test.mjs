@@ -135,6 +135,81 @@ test("TA previews isolate student records and submissions reach the authorized i
   );
 });
 
+test("TA extensions persist for one simulated process and protect concurrent edits", async (t) => {
+  const { env, request, demo } = fixture(t);
+  env.TA_LOGIN_RECORD = JSON.stringify({
+    student: "test-ta",
+    salt: "test",
+    verifier: await passwordHash("fixture-password", "test"),
+  });
+  const auth = await request("login", {
+    method: "POST",
+    body: JSON.stringify({
+      student: "test-ta",
+      password: "fixture-password",
+      role: "ta",
+    }),
+  });
+  const ta = auth.headers.get("Set-Cookie").split(";")[0];
+  const student = await demo();
+  const find = async (query) =>
+    (
+      await (
+        await request("ta?section=processes&" + query, { cookie: ta })
+      ).json()
+    ).records;
+  const matches = await find("student=20260017");
+  assert.equal(matches.length, 2);
+  const [target] = await find("student=20260017&pid=20682");
+  assert.deepEqual(await find("student=20260042&pid=20682"), []);
+  const until = Math.max(Math.floor(Date.now() / 1000), target.started) + 86400;
+  const payload = {
+    key: target.key,
+    until,
+    revision: 0,
+    reason: "  Verify gradient accumulation  ",
+  };
+  const save = (cookie, overrides = {}) =>
+    request("ta/debug-extension", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ ...payload, ...overrides }),
+    });
+  assert.equal((await save("")).status, 401);
+  assert.equal((await save(student)).status, 403);
+  assert.equal((await save(ta, { until: 0 })).status, 400);
+  assert.equal((await save(ta, { reason: "  " })).status, 400);
+  assert.equal((await save(ta, { key: target.key + "stale" })).status, 404);
+  assert.equal((await save(ta)).status, 200);
+  assert.equal((await save(ta)).status, 200);
+  const [updated] = await find("pid=20682");
+  assert.deepEqual(
+    [
+      updated.revision,
+      updated.until,
+      updated.reason,
+      updated.approvedBy,
+      updated.extensionActive,
+    ],
+    [1, until, "Verify gradient accumulation", "test-ta", true],
+  );
+  assert.equal((await find("pid=21796"))[0].until, null);
+  assert.equal((await save(ta, { until: until + 3600 })).status, 409);
+  assert.equal(
+    (await save(ta, { revision: 1, until: until - 10 })).status,
+    400,
+  );
+  assert.equal(
+    (await save(ta, { revision: 1, until: until + 3600 })).status,
+    200,
+  );
+  env.COMPUTE_API_URL = "https://provider.example/v1";
+  assert.equal(
+    (await save(ta, { revision: 2, until: until + 7200 })).status,
+    403,
+  );
+});
+
 test("group allocation, one active job, queue ETA, owner access and results", async (t) => {
   const { env, request, demo, submit, advance } = fixture(t);
   const a = await demo(),

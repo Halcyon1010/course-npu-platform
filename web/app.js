@@ -1,4 +1,4 @@
-import { operationsView } from "./console.js";
+import { operationsView, extensionForm } from "./console.js";
 const by = (id) => document.getElementById(id);
 let lang = localStorage.getItem("course-language") === "zh" ? "zh" : "en";
 const t = (en, zh) => (lang === "zh" ? zh : en);
@@ -67,6 +67,22 @@ const button = (act, text, cls = "btn") =>
   text +
   "</button>";
 const errors = () => ({
+  invalid_extension: t(
+    "Choose a future time later than the current deadline and enter a reason (up to 500 characters).",
+    "请选择晚于当前时间和原截止时间的新时间，并填写原因（最多 500 字）。",
+  ),
+  extension_changed: t(
+    "Another TA updated this process. Close and reopen the form to see the latest deadline.",
+    "其他助教已更新这条进程，请关闭后重新打开，查看最新截止时间。",
+  ),
+  simulation_only: t(
+    "Extensions are enabled only for simulated debug processes.",
+    "目前仅支持为模拟调试进程延期。",
+  ),
+  process_missing: t(
+    "This process is no longer listed.",
+    "这条进程已不在列表中。",
+  ),
   invalid_suggestion: t(
     "Choose a category and enter up to 2,000 characters.",
     "请选择类别，建议内容限 2,000 字。",
@@ -145,6 +161,7 @@ let consoleSection = "queue",
   consoleOffset = 0,
   consoleData = null,
   consoleSeq = 0;
+let processFilter = { student: "", pid: "" };
 async function loadConsole() {
   const seq = ++consoleSeq;
   try {
@@ -154,7 +171,10 @@ async function loadConsole() {
         "&offset=" +
         consoleOffset +
         "&sample=" +
-        Number(consoleSection === "queue" && sampleQueue && sim()),
+        Number(consoleSection === "queue" && sampleQueue && sim()) +
+        (consoleSection === "processes"
+          ? "&" + new URLSearchParams(processFilter)
+          : ""),
     );
     if (seq === consoleSeq) consoleData = data;
   } catch (error) {
@@ -434,6 +454,7 @@ function render() {
         data: consoleData,
         staff: state.staff,
         canSwitchQueue: sim(),
+        processFilter,
       });
   if (page() === "training") {
     const metrics = [
@@ -591,9 +612,18 @@ function drawModal() {
     account: t("Your account", "个人账号"),
     new: t("New training job", "新建训练任务"),
     details: t("Job details", "任务详情"),
+    extension: t("Extend debug process", "调试进程延期"),
   };
   by("mt").textContent = titles[type] || "";
   let html = "";
+  if (type === "extension")
+    html = extensionForm({
+      t,
+      esc,
+      time,
+      process: chosen,
+      snapshotTime: consoleData?.at ?? 0,
+    });
   if (type === "login")
     html =
       '<div class="ops-nav" role="group" aria-label="' +
@@ -771,6 +801,21 @@ function showError(e) {
   else notify(e.message);
 }
 document.addEventListener("click", async (e) => {
+  const extend = e.target.closest("[data-extend]");
+  if (extend && !pending && state?.staff) {
+    const process = consoleData?.records?.find(
+      (p) => p.key === extend.dataset.extend,
+    );
+    if (process) openModal("extension", process);
+    return;
+  }
+  if (e.target.closest("[data-clear-filter]")) {
+    processFilter = { student: "", pid: "" };
+    consoleOffset = 0;
+    await loadConsole();
+    render();
+    return;
+  }
   const role = e.target.closest("[data-login-role]");
   if (role && !pending) {
     loginRole = role.dataset.loginRole;
@@ -815,9 +860,27 @@ document.addEventListener("submit", async (e) => {
   submit.disabled = true;
   try {
     const data = new FormData(form);
+    if (form.id === "process-filter") {
+      processFilter = {
+        student: data.get("student").trim(),
+        pid: data.get("pid").trim(),
+      };
+      consoleOffset = 0;
+      await loadConsole();
+      render();
+      return;
+    }
     if (form.id === "signin")
       await api("login", { ...Object.fromEntries(data), role: loginRole });
-    else if (form.id === "suggest") {
+    else if (form.id === "extend-process") {
+      await api("ta/debug-extension", {
+        key: chosen.key,
+        revision: chosen.revision,
+        until: Math.floor(new Date(data.get("until")).getTime() / 1000),
+        reason: data.get("reason"),
+      });
+      notify(t("Extension saved", "延期已保存"));
+    } else if (form.id === "suggest") {
       const receipt = await api("suggestions", Object.fromEntries(data));
       form.reset();
       notify(t("Suggestion received · #", "建议已收到 · #") + receipt.id);
@@ -858,7 +921,11 @@ window.onhashchange = async () => {
 render();
 refresh();
 setInterval(async () => {
-  if (!document.hidden && !pending) {
+  if (
+    !document.hidden &&
+    !pending &&
+    !document.activeElement?.closest("#process-filter")
+  ) {
     await refresh();
     if (modalType === "details" && !by("logarea")?.textContent) drawModal();
   }

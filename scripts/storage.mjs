@@ -18,6 +18,7 @@ export function storage(root = ".runtime") {
     "0000_workspace",
     "0001_suggestions",
     "0002_session_role",
+    "0003_debug_extensions",
   ]) {
     if (conn.prepare("SELECT 1 FROM schema_versions WHERE name=?").get(name))
       continue;

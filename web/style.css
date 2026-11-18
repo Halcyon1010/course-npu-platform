@@ -678,6 +678,38 @@ footer {
   color: #8a392a;
   background: #fae6df;
 }
+.process-filter {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin: 14px 0;
+}
+.process-filter label {
+  margin: 0;
+  width: 10em;
+}
+.process-filter input {
+  display: block;
+  margin-top: 5px;
+}
+.extension-note {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 25em;
+  margin-top: 4px;
+  color: #526b5d;
+  font-size: 13px;
+}
+#reason {
+  font: inherit;
+  width: 100%;
+  border: 1px solid #c9d6ce;
+  border-radius: 7px;
+  padding: 10px;
+  resize: vertical;
+}
 .op-message {
   display: block;
   white-space: pre-wrap;

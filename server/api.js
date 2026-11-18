@@ -299,6 +299,8 @@ async function api(req, env) {
       : reject("missing", 404);
   }
   const user = await session(req, env);
+  if (path === "/api/ta/debug-extension" && method === "POST")
+    return extendDebugProcess(req, env, user);
   if (path === "/api/ta" && method === "GET")
     return consoleView(req, env, user);
   if (path === "/api/state" && method === "GET") {
