@@ -1,5 +1,11 @@
 export default {
   async fetch(req, env, ctx) {
+    if (env.SITE_PAUSED === "1") {
+      return new Response("Course Compute is temporarily closed.\n课程算力平台已暂时关闭。", {
+        status: 503,
+        headers: {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"},
+      });
+    }
     try {
       const path = new URL(req.url).pathname;
       if (path === "/api/scheduler" && req.method === "POST") {
@@ -32,7 +38,7 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(tick(env));
+    if (env.SITE_PAUSED !== "1") ctx.waitUntil(tick(env));
   },
 };
 export { tick, passwordHash };
