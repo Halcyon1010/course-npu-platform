@@ -18,16 +18,19 @@ let state = null,
 let loginRole = "student",
   sampleQueue = true;
 const page = () =>
-  state?.staff
-    ? "ta"
-    : ["training", "debug"].includes(location.hash.slice(1))
-      ? location.hash.slice(1)
-      : "overview";
+  location.hash === "#feedback"
+    ? "feedback"
+    : state?.staff
+      ? "ta"
+      : ["training", "debug"].includes(location.hash.slice(1))
+        ? location.hash.slice(1)
+        : "overview";
 const names = () => ({
   overview: t("Overview", "概览"),
   training: t("Training jobs", "训练任务"),
   debug: t("Debug access", "调试入口"),
   ta: t("TA console", "助教管理端"),
+  feedback: t("Feedback", "提建议"),
 });
 const statusName = (s) =>
   ({
@@ -119,7 +122,7 @@ async function refresh() {
     }
     if (
       (location.hash === "#ta" && !state.staff) ||
-      (state.staff && location.hash !== "#ta")
+      (state.staff && !["#ta", "#feedback"].includes(location.hash))
     )
       history.replaceState(null, "", "#" + (state.staff ? "ta" : "overview"));
     if (page() === "ta") await loadConsole();
@@ -358,10 +361,11 @@ function render() {
     option.setAttribute("aria-pressed", String(option.dataset.lang === lang));
   }
   by("account").textContent = userName() || t("Sign in", "登录");
-  by("feedback").textContent = t("Leave a suggestion", "提建议");
   by("close").setAttribute("aria-label", t("Close", "关闭"));
   by("nav").innerHTML = Object.entries(names())
-    .filter(([k]) => (state?.staff ? k === "ta" : k !== "ta"))
+    .filter(([k]) =>
+      state?.staff ? ["ta", "feedback"].includes(k) : k !== "ta",
+    )
     .map(
       ([k, v]) =>
         '<a href="#' +
@@ -383,6 +387,27 @@ function render() {
     "<span>/</span>" +
     names()[page()] +
     "</div>";
+  if (page() === "feedback") {
+    const owner = state.user?.student || "";
+    const existing = by("feedback-page");
+    if (existing?.lang === lang && existing.dataset.owner === owner) return;
+    const draft = existing?.dataset.owner === owner ? by("stext")?.value : null;
+    const category = by("scat")?.value;
+    by("content").innerHTML =
+      crumb +
+      '<section id="feedback-page" class="feedback-page"><div class="pagetitle"><h1>' +
+      names().feedback +
+      '</h1></div><div class="pane">' +
+      feedbackForm() +
+      "</div></section>";
+    by("feedback-page").lang = lang;
+    by("feedback-page").dataset.owner = owner;
+    if (draft != null && by("stext")) {
+      by("stext").value = draft;
+      by("scat").value = category;
+    }
+    return;
+  }
   if (page() === "overview")
     by("content").innerHTML =
       crumb +
@@ -521,6 +546,43 @@ function close() {
   modalType = null;
   chosen = null;
 }
+function feedbackForm() {
+  if (!state.user)
+    return (
+      '<p class="help">' +
+      t(
+        "Sign in to send a suggestion to course operations.",
+        "登录后即可向课程运维提交建议。",
+      ) +
+      "</p>" +
+      button("login", t("Sign in", "登录"))
+    );
+  else
+    return (
+      '<form id="suggest"><label for="scat">' +
+      t("Category", "类别") +
+      '</label><select name="category" id="scat">' +
+      [
+        ["website", t("Website", "网站")],
+        ["training", t("Training pool", "训练池")],
+        ["debug", t("Debug pool", "调试池")],
+        ["other", t("Other", "其他")],
+      ]
+        .map(([key, v]) => '<option value="' + key + '">' + v + "</option>")
+        .join("") +
+      '</select><label for="stext">' +
+      t("What could we improve?", "你希望我们改进什么？") +
+      '</label><textarea id="stext" name="message" rows="5" maxlength="2000" required></textarea><p class="help">' +
+      t(
+        "Course operations can see your suggestion and account ID.",
+        "课程运维可查看你的建议及提交账号。",
+      ) +
+      '</p><button class="btn">' +
+      t("Submit suggestion", "提交建议") +
+      "</button></form>"
+    );
+}
+
 function drawModal() {
   const type = modalType;
   const j = state.jobs.find((v) => v.id === chosen);
@@ -529,44 +591,9 @@ function drawModal() {
     account: t("Your account", "个人账号"),
     new: t("New training job", "新建训练任务"),
     details: t("Job details", "任务详情"),
-    feedback: t("Leave a suggestion", "提建议"),
   };
   by("mt").textContent = titles[type] || "";
   let html = "";
-  if (type === "feedback") {
-    if (!state.user)
-      html =
-        '<p class="help">' +
-        t(
-          "Sign in to send a suggestion to course operations.",
-          "登录后即可向课程运维提交建议。",
-        ) +
-        "</p>" +
-        button("feedback-login", t("Sign in", "登录"));
-    else
-      html =
-        '<form id="suggest"><label for="scat">' +
-        t("Category", "类别") +
-        '</label><select name="category" id="scat">' +
-        [
-          ["website", t("Website", "网站")],
-          ["training", t("Training pool", "训练池")],
-          ["debug", t("Debug pool", "调试池")],
-          ["other", t("Other", "其他")],
-        ]
-          .map(([key, v]) => '<option value="' + key + '">' + v + "</option>")
-          .join("") +
-        '</select><label for="stext">' +
-        t("What could we improve?", "你希望我们改进什么？") +
-        '</label><textarea id="stext" name="message" rows="5" maxlength="2000" required></textarea><p class="help">' +
-        t(
-          "Course operations can see your suggestion and account ID.",
-          "课程运维可查看你的建议及提交账号。",
-        ) +
-        '</p><button class="btn">' +
-        t("Submit suggestion", "提交建议") +
-        "</button></form>";
-  }
   if (type === "login")
     html =
       '<div class="ops-nav" role="group" aria-label="' +
@@ -693,8 +720,6 @@ function drawModal() {
   by("mb").innerHTML = html + '<p id="err" class="error" role="alert"></p>';
 }
 async function act(k) {
-  if (k === "feedback") return openModal("feedback");
-  if (k === "feedback-login") return openModal("login", "feedback");
   if (k === "login") return openModal("login");
   if (k === "new")
     return openModal(
@@ -710,12 +735,10 @@ async function act(k) {
     return notify(t("Copied", "已复制"));
   }
   if (k === "demo" || k === "logout") {
-    const returnToFeedback = k === "demo" && chosen === "feedback";
     await api(k, {});
     consoleData = null;
     close();
     await refresh();
-    if (returnToFeedback) openModal("feedback");
     return;
   }
   if (k === "cancel") {
@@ -792,16 +815,15 @@ document.addEventListener("submit", async (e) => {
   submit.disabled = true;
   try {
     const data = new FormData(form);
-    const returnToFeedback = form.id === "signin" && chosen === "feedback";
     if (form.id === "signin")
       await api("login", { ...Object.fromEntries(data), role: loginRole });
     else if (form.id === "suggest") {
       const receipt = await api("suggestions", Object.fromEntries(data));
+      form.reset();
       notify(t("Suggestion received · #", "建议已收到 · #") + receipt.id);
     } else await api("jobs", data);
     close();
     await refresh();
-    if (returnToFeedback) openModal("feedback");
     if (form.id === "job") notify(t("Job submitted", "任务已提交"));
   } catch (ex) {
     showError(ex);

@@ -588,11 +588,14 @@ footer {
 .footbrand {
   margin-left: auto;
 }
-#feedback {
-  margin-left: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  font-size: 13px;
+.feedback-page {
+  max-width: 720px;
+}
+.feedback-page .pane {
+  padding: 24px 28px;
+}
+.feedback-page label:first-child {
+  margin-top: 0;
 }
 .ops-heading {
   background: linear-gradient(112deg, #123c31, #1e5144);
