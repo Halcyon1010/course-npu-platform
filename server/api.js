@@ -46,13 +46,16 @@ async function session(req, env) {
   if (!match) return null;
   return one(
     env.DB,
-    "SELECT student,demo FROM sessions WHERE token=? AND expires>?",
+    "SELECT student,demo,role FROM sessions WHERE token=? AND expires>?",
     await digest(match[1]),
     now(),
   );
 }
 async function login(req, env, demo) {
   const data = await req.json();
+  const role = data.role ?? "student";
+  if (!["student", "ta"].includes(role) || (demo && role !== "student"))
+    return reject("bad_login", 401);
   let student;
   if (demo) {
     if (modeFor(env) !== "simulation") return reject("demo_off", 403);
@@ -86,27 +89,34 @@ async function login(req, env, demo) {
       ).attempts > 12
     )
       return reject("rate_limit", 429);
-    const account = await one(
-      env.DB,
-      "SELECT * FROM accounts WHERE student=?",
-      student,
-    );
+    const configured = role === "ta" ? configuredTA(env) : null;
+    const account =
+      configured?.student === student
+        ? configured
+        : await one(env.DB, "SELECT * FROM accounts WHERE student=?", student);
     const hash = await passwordHash(
       data.password,
       account?.salt || "unknown-student",
     );
-    if (!account || hash !== account.verifier) return reject("bad_login", 401);
+    if (
+      !account ||
+      hash !== account.verifier ||
+      (role === "ta" &&
+        !isTeachingAssistant(env, { student, role, demo: false }))
+    )
+      return reject("bad_login", 401);
     await run(env.DB, "DELETE FROM login_attempts WHERE identity=?", identity);
   }
   const token = crypto.randomUUID();
   await run(env.DB, "DELETE FROM sessions WHERE expires<=?", now());
   await run(
     env.DB,
-    "INSERT INTO sessions VALUES(?,?,?,?)",
+    "INSERT INTO sessions(token,student,demo,expires,role) VALUES(?,?,?,?,?)",
     await digest(token),
     student,
     +demo,
     now() + 28800,
+    role,
   );
   return reply({ ok: true }, 200, {
     "Set-Cookie": makeCookie(req, token, 28800),

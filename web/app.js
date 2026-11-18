@@ -15,10 +15,14 @@ let state = null,
   chosen = null,
   pending = false,
   fetchSeq = 0;
+let loginRole = "student",
+  sampleQueue = true;
 const page = () =>
-  ["training", "debug", "ta"].includes(location.hash.slice(1))
-    ? location.hash.slice(1)
-    : "overview";
+  state?.staff
+    ? "ta"
+    : ["training", "debug"].includes(location.hash.slice(1))
+      ? location.hash.slice(1)
+      : "overview";
 const names = () => ({
   overview: t("Overview", "概览"),
   training: t("Training jobs", "训练任务"),
@@ -109,6 +113,15 @@ async function refresh() {
     const next = await api("state");
     if (seq !== fetchSeq) return;
     state = next;
+    if (!state.staff) {
+      consoleData = null;
+      ++consoleSeq;
+    }
+    if (
+      (location.hash === "#ta" && !state.staff) ||
+      (state.staff && location.hash !== "#ta")
+    )
+      history.replaceState(null, "", "#" + (state.staff ? "ta" : "overview"));
     if (page() === "ta") await loadConsole();
     render();
   } catch (e) {
@@ -133,7 +146,12 @@ async function loadConsole() {
   const seq = ++consoleSeq;
   try {
     const data = await api(
-      "ta?section=" + consoleSection + "&offset=" + consoleOffset,
+      "ta?section=" +
+        consoleSection +
+        "&offset=" +
+        consoleOffset +
+        "&sample=" +
+        Number(consoleSection === "queue" && sampleQueue && sim()),
     );
     if (seq === consoleSeq) consoleData = data;
   } catch (error) {
@@ -343,7 +361,7 @@ function render() {
   by("feedback").textContent = t("Leave a suggestion", "提建议");
   by("close").setAttribute("aria-label", t("Close", "关闭"));
   by("nav").innerHTML = Object.entries(names())
-    .filter(([k]) => k !== "ta" || sim() || state?.staff)
+    .filter(([k]) => (state?.staff ? k === "ta" : k !== "ta"))
     .map(
       ([k, v]) =>
         '<a href="#' +
@@ -390,6 +408,7 @@ function render() {
         section: consoleSection,
         data: consoleData,
         staff: state.staff,
+        canSwitchQueue: sim(),
       });
   if (page() === "training") {
     const metrics = [
@@ -491,6 +510,7 @@ function render() {
   art();
 }
 function openModal(type, id) {
+  if (type === "login") loginRole = "student";
   modalType = type;
   chosen = id;
   drawModal();
@@ -505,7 +525,7 @@ function drawModal() {
   const type = modalType;
   const j = state.jobs.find((v) => v.id === chosen);
   const titles = {
-    login: t("Student sign in", "学生登录"),
+    login: t("Sign in", "登录"),
     account: t("Your account", "个人账号"),
     new: t("New training job", "新建训练任务"),
     details: t("Job details", "任务详情"),
@@ -549,14 +569,34 @@ function drawModal() {
   }
   if (type === "login")
     html =
-      '<form id="signin"><label for="student">' +
-      t("Student ID", "学号") +
+      '<div class="ops-nav" role="group" aria-label="' +
+      t("Sign-in role", "登录身份") +
+      '">' +
+      [
+        ["student", t("Student login", "学生端登录")],
+        ["ta", t("TA login", "管理端登录")],
+      ]
+        .map(
+          ([v, label]) =>
+            '<button type="button" data-login-role="' +
+            v +
+            '" aria-pressed="' +
+            (loginRole === v) +
+            '">' +
+            label +
+            "</button>",
+        )
+        .join("") +
+      '</div><form id="signin"><label for="student">' +
+      (loginRole === "ta"
+        ? t("TA account", "助教账号")
+        : t("Student ID", "学号")) +
       '</label><input id="student" name="student" autocomplete="username" required maxlength="40"><label for="pw">' +
       t("Password", "密码") +
       '</label><input id="pw" name="password" type="password" autocomplete="current-password" required><div class="actions"><button class="btn">' +
       t("Sign in", "登录") +
       "</button>" +
-      (sim()
+      (sim() && loginRole === "student"
         ? button("demo", t("Try a demo account", "试用演示账号"), "btn light")
         : "") +
       "</div></form>";
@@ -708,9 +748,18 @@ function showError(e) {
   else notify(e.message);
 }
 document.addEventListener("click", async (e) => {
-  const view = e.target.closest("[data-section],[data-offset]");
+  const role = e.target.closest("[data-login-role]");
+  if (role && !pending) {
+    loginRole = role.dataset.loginRole;
+    drawModal();
+    return;
+  }
+  const view = e.target.closest("[data-section],[data-offset],[data-sample]");
   if (view) {
-    if (view.dataset.section) {
+    if (view.hasAttribute("data-sample")) {
+      sampleQueue = !sampleQueue;
+      consoleOffset = 0;
+    } else if (view.dataset.section) {
       consoleSection = view.dataset.section;
       consoleOffset = 0;
     } else consoleOffset = Number(view.dataset.offset);
@@ -744,7 +793,8 @@ document.addEventListener("submit", async (e) => {
   try {
     const data = new FormData(form);
     const returnToFeedback = form.id === "signin" && chosen === "feedback";
-    if (form.id === "signin") await api("login", Object.fromEntries(data));
+    if (form.id === "signin")
+      await api("login", { ...Object.fromEntries(data), role: loginRole });
     else if (form.id === "suggest") {
       const receipt = await api("suggestions", Object.fromEntries(data));
       notify(t("Suggestion received · #", "建议已收到 · #") + receipt.id);

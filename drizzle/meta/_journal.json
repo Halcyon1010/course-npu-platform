@@ -1,1 +1,1 @@
-{"version":"7","dialect":"sqlite","entries":[{"idx":0,"version":"6","when":1794960000000,"tag":"0000_workspace","breakpoints":true},{"idx":1,"version":"6","when":1794990000000,"tag":"0001_suggestions","breakpoints":true}]}
+{"version":"7","dialect":"sqlite","entries":[{"idx":0,"version":"6","when":1794960000000,"tag":"0000_workspace","breakpoints":true},{"idx":1,"version":"6","when":1794990000000,"tag":"0001_suggestions","breakpoints":true},{"idx":2,"version":"6","when":1794990001000,"tag":"0002_session_role","breakpoints":true}]}

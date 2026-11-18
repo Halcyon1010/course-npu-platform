@@ -14,7 +14,11 @@ export function storage(root = ".runtime") {
   conn.exec(
     "CREATE TABLE IF NOT EXISTS schema_versions(name TEXT PRIMARY KEY)",
   );
-  for (const name of ["0000_workspace", "0001_suggestions"]) {
+  for (const name of [
+    "0000_workspace",
+    "0001_suggestions",
+    "0002_session_role",
+  ]) {
     if (conn.prepare("SELECT 1 FROM schema_versions WHERE name=?").get(name))
       continue;
     conn.exec("BEGIN IMMEDIATE");

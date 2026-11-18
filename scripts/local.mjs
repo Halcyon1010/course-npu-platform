@@ -2,8 +2,13 @@ import "./build.mjs";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 import { storage } from "./storage.mjs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 const { default: worker, tick } = await import("../dist/server/index.js");
 const env = { ...process.env, ...storage(process.env.DATA_DIR) };
+const recordFile = join(process.env.DATA_DIR || ".runtime", "ta-account.json");
+if (!env.TA_LOGIN_RECORD && existsSync(recordFile))
+  env.TA_LOGIN_RECORD = readFileSync(recordFile, "utf8");
 const port = Number(process.env.PORT || 8787),
   host = process.env.HOST || "127.0.0.1";
 const ctx = {

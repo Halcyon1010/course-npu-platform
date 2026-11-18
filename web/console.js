@@ -1,5 +1,13 @@
 // Rendering uses the same language, date formatter and HTML escaping as the student workspace.
-export function operationsView({ t, esc, time, section, data, staff }) {
+export function operationsView({
+  t,
+  esc,
+  time,
+  section,
+  data,
+  staff,
+  canSwitchQueue,
+}) {
   const titles = {
     queue: t("Training queue", "训练队列"),
     processes: t("Debug processes", "调试进程"),
@@ -180,5 +188,13 @@ export function operationsView({ t, esc, time, section, data, staff }) {
         t("Next", "下一页") +
         "</button></div>"
       : "";
-  return heading + nav + caption + details + table + pager;
+  const switchQueue =
+    section === "queue" && canSwitchQueue
+      ? '<p><button class="linkbtn" data-sample>' +
+        (data.sample
+          ? t("Show submitted jobs", "查看实际提交")
+          : t("Show sample queue", "查看模拟队列")) +
+        "</button></p>"
+      : "";
+  return heading + nav + caption + details + table + pager + switchQueue;
 }

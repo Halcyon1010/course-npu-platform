@@ -48,13 +48,18 @@ const exampleSuggestions = [
     zh: "建议在调试提醒邮件中附上节点名称。",
   },
 ];
+function configuredTA(env) {
+  return env.TA_LOGIN_RECORD ? JSON.parse(env.TA_LOGIN_RECORD) : null;
+}
 function isTeachingAssistant(env, user) {
   return (
     !!user &&
     !user.demo &&
-    (env.TA_ACCOUNT_IDS || "")
-      .split(",")
-      .some((id) => id.trim() === user.student)
+    user.role === "ta" &&
+    (configuredTA(env)?.student === user.student ||
+      (env.TA_ACCOUNT_IDS || "")
+        .split(",")
+        .some((id) => id.trim() === user.student))
   );
 }
 async function receiveSuggestion(req, env, user) {
@@ -80,8 +85,7 @@ async function receiveSuggestion(req, env, user) {
 async function consoleView(req, env, user) {
   const staff = isTeachingAssistant(env, user),
     simulated = modeFor(env) === "simulation";
-  if (!staff && !simulated)
-    return reject(user ? "forbidden" : "sign_in", user ? 403 : 401);
+  if (!staff) return reject(user ? "forbidden" : "sign_in", user ? 403 : 401);
   const params = new URL(req.url).searchParams;
   const section = params.get("section") || "queue",
     offset = Number(params.get("offset") || 0);
@@ -91,7 +95,7 @@ async function consoleView(req, env, user) {
     offset < 0
   )
     return reject("invalid_page", 400);
-  const preview = !staff;
+  const preview = simulated && params.get("sample") === "1";
   let records, total;
   if (preview || section === "processes") {
     const fixtures = {

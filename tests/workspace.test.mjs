@@ -64,26 +64,53 @@ test("TA previews isolate student records and submissions reach the authorized i
   assert.equal(saved.status, 201);
   const { id } = await saved.json();
   await submit(student, 4);
-  const sample = await (
-    await request("ta?section=inbox", { cookie: student })
-  ).json();
-  assert.ok(sample.preview);
-  assert.ok(sample.records.every((r) => r.message !== "Improve queue notices"));
-  const proc = await (await request("ta?section=processes")).json();
-  assert.ok(proc.records.some((p) => p.until > proc.at));
-  assert.ok(proc.records.some((p) => p.until && p.until < proc.at));
-  assert.ok(
-    proc.records.every((p) => p.started < proc.at && p.pid && p.student),
+  assert.equal(
+    (await request("ta?section=inbox&sample=1", { cookie: student })).status,
+    403,
+  );
+  assert.equal((await request("ta?section=processes")).status, 401);
+  assert.equal(
+    (await request("demo", { method: "POST", body: '{"role":"ta"}' })).status,
+    401,
   );
   env.TA_ACCOUNT_IDS = "staff1";
   env.DB.prepare("INSERT INTO accounts VALUES(?,?,?)")
     .bind("staff1", "salt", await passwordHash("course-ta-password", "salt"))
     .run();
-  const login = await request("login", {
+  const studentLogin = await request("login", {
     method: "POST",
     body: JSON.stringify({ student: "staff1", password: "course-ta-password" }),
   });
+  const studentRole = studentLogin.headers.get("Set-Cookie").split(";")[0];
+  assert.equal(
+    (await request("ta?section=queue", { cookie: studentRole })).status,
+    403,
+  );
+  const login = await request("login", {
+    method: "POST",
+    body: JSON.stringify({
+      student: "staff1",
+      password: "course-ta-password",
+      role: "ta",
+    }),
+  });
   const staff = login.headers.get("Set-Cookie").split(";")[0];
+  const proc = await (
+    await request("ta?section=processes", { cookie: staff })
+  ).json();
+  assert.ok(proc.records.some((p) => p.until > proc.at));
+  assert.ok(proc.records.some((p) => p.until && p.until < proc.at));
+  assert.ok(
+    proc.records.every((p) => p.started < proc.at && p.pid && p.student),
+  );
+  assert.equal(
+    (
+      await (
+        await request("ta?section=queue&sample=1", { cookie: staff })
+      ).json()
+    ).preview,
+    true,
+  );
   const inbox = await (
     await request("ta?section=inbox", { cookie: staff })
   ).json();
