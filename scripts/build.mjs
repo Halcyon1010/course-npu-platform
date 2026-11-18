@@ -3,13 +3,14 @@ const assets = {};
 for (const [path, file, type] of [
   ["/", "index.html", "text/html"],
   ["/app.js", "app.js", "text/javascript"],
+  ["/console.js", "console.js", "text/javascript"],
   ["/style.css", "style.css", "text/css"],
 ]) {
   assets[path] = [type, await readFile("web/" + file, "utf8")];
 }
 const server = (
   await Promise.all(
-    ["provider", "api", "entry"].map((name) =>
+    ["provider", "operations", "api", "entry"].map((name) =>
       readFile("server/" + name + ".js", "utf8"),
     ),
   )

@@ -164,6 +164,7 @@ async function dashboard(env, user) {
       : null;
   return {
     user,
+    staff: isTeachingAssistant(env, user),
     mode,
     total,
     free,
@@ -288,11 +289,15 @@ async function api(req, env) {
       : reject("missing", 404);
   }
   const user = await session(req, env);
+  if (path === "/api/ta" && method === "GET")
+    return consoleView(req, env, user);
   if (path === "/api/state" && method === "GET") {
     if (mode === "simulation") await tick(env);
     return reply(await dashboard(env, user));
   }
   if (!user) return reject("sign_in", 401);
+  if (path === "/api/suggestions" && method === "POST")
+    return receiveSuggestion(req, env, user);
   if (path === "/api/jobs" && method === "POST") return submit(req, env, user);
   const match = path.match(
     /^\/api\/jobs\/([a-f0-9-]{36})\/(cancel|log|result)$/,

@@ -46,6 +46,68 @@ function fixture(t) {
   return { env, request, demo, submit, advance };
 }
 
+test("TA previews isolate student records and submissions reach the authorized inbox", async (t) => {
+  const { env, request, demo, submit } = fixture(t);
+  const student = await demo();
+  const suggestion = async (cookie, message, extra = {}) =>
+    request("suggestions", {
+      cookie,
+      method: "POST",
+      body: JSON.stringify({ category: "website", message, ...extra }),
+    });
+  assert.equal((await suggestion("", "Guest")).status, 401);
+  assert.equal((await suggestion(student, "  ")).status, 400);
+  assert.equal((await suggestion(student, "x".repeat(2001))).status, 400);
+  const saved = await suggestion(student, "Improve queue notices", {
+    student: "spoof",
+  });
+  assert.equal(saved.status, 201);
+  const { id } = await saved.json();
+  await submit(student, 4);
+  const sample = await (
+    await request("ta?section=inbox", { cookie: student })
+  ).json();
+  assert.ok(sample.preview);
+  assert.ok(sample.records.every((r) => r.message !== "Improve queue notices"));
+  const proc = await (await request("ta?section=processes")).json();
+  assert.ok(proc.records.some((p) => p.until > proc.at));
+  assert.ok(proc.records.some((p) => p.until && p.until < proc.at));
+  assert.ok(
+    proc.records.every((p) => p.started < proc.at && p.pid && p.student),
+  );
+  env.TA_ACCOUNT_IDS = "staff1";
+  env.DB.prepare("INSERT INTO accounts VALUES(?,?,?)")
+    .bind("staff1", "salt", await passwordHash("course-ta-password", "salt"))
+    .run();
+  const login = await request("login", {
+    method: "POST",
+    body: JSON.stringify({ student: "staff1", password: "course-ta-password" }),
+  });
+  const staff = login.headers.get("Set-Cookie").split(";")[0];
+  const inbox = await (
+    await request("ta?section=inbox", { cookie: staff })
+  ).json();
+  assert.equal(inbox.preview, false);
+  assert.equal(inbox.records[0].id, id);
+  assert.notEqual(inbox.records[0].student, "spoof");
+  assert.equal(inbox.records[0].message, "Improve queue notices");
+  const queue = await (
+    await request("ta?section=queue", { cookie: staff })
+  ).json();
+  assert.equal(queue.records[0].cards, 4);
+  env.COMPUTE_API_URL = "https://provider.example/v1";
+  assert.equal(
+    (await request("ta?section=inbox", { cookie: student })).status,
+    403,
+  );
+  assert.equal((await request("ta?section=inbox")).status, 401);
+  assert.equal(
+    (await (await request("ta?section=processes", { cookie: staff })).json())
+      .connected,
+    false,
+  );
+});
+
 test("group allocation, one active job, queue ETA, owner access and results", async (t) => {
   const { env, request, demo, submit, advance } = fixture(t);
   const a = await demo(),
