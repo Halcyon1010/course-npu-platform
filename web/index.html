@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#111f22" />
+    <title>Course Compute</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <a class="brand" href="#overview"
+          ><i class="mark" aria-hidden="true"><b></b><b></b><b></b><b></b></i
+          >Course Compute</a
+        >
+        <nav id="nav"></nav>
+        <div class="tools">
+          <button id="lang" aria-label="Switch language">中文</button
+          ><button id="account" class="btn compact"></button>
+        </div>
+      </div>
+    </header>
+    <main><div id="content"></div></main>
+    <footer>
+      <span class="led"></span><span id="foot"></span
+      ><span class="footbrand">Course Compute</span>
+    </footer>
+    <dialog id="modal">
+      <div class="dialoghead">
+        <h2 id="mt"></h2>
+        <button id="close" aria-label="Close">×</button>
+      </div>
+      <div id="mb"></div>
+    </dialog>
+    <div role="status" id="toast"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+# 网站运行与算力接入
+
+## 试用
+
+Node.js 22.13 或更高版本可直接运行。项目使用 Node 标准库，本地账号、会话、任务和上传包保存在 Git 忽略的 `.runtime/`。运行 `npm start` 后打开终端打印的地址（默认 http://127.0.0.1:8787）。默认英语，右上角切换语言，浏览器会保存选择。
+
+点击 **Sign in → Try a demo account** 创建独立的模拟身份。进入 **Training jobs → New job**，填写名称、选择 1–4 张卡，使用课程基础镜像时可留空 ZIP，提交内置样例。模拟器按 FIFO 成组分配卡，默认占用 120 秒，详情页可查看队位、预计等待、模拟日志，结束后下载模拟结果。每生同时最多一个活跃任务，取消或结束后可再次提交。演示账号退出后不能重新登录同一身份。持久化课程账号可跨会话使用。
+
+## 课程账号与共享调试
+
+本地管理员在受信终端设置临时环境变量 `COURSE_ACCOUNT_PASSWORD` 后运行 `npm run account -- 20261234` 创建学生账号，随后清除该变量。密码长度 12–256 字符。数据库保存盐和 PBKDF2 摘要。默认没有内置管理员密码或公开注册入口。托管预览和本机数据库独立，托管预览可直接通过演示账号试用；正式开课需把名单与身份源接入所选部署环境。
+
+配置 `DEBUG_SSH_HOST` 后，已登记学生可看到本人的 SSH 命令，`SSH_USER_PREFIX` 默认 s。该入口依赖管理员在调试主机完成账号、密钥及设备权限配置。演示身份无法获得 SSH 入口。网页展示巡检政策；真实 910C 上的 PID/UID 识别、邮件和超时终止由待接入的节点服务负责。
+
+## 训练资源适配器
+
+本地运行时可设 `SIM_CARDS`（0–48）、`SIM_SECONDS` 与 `PORT` 改变演练场景。部署于托管 Worker 时使用 D1 的 DB 和 R2 的 BUCKET 绑定。为了让前后端、模拟器和持久化能一同预览，首版采用 ES modules 与 SQLite/D1。适配器入口为 [server/provider.js](../server/provider.js)，队列和任务历史由平台保存。
+
+接入真实训练环境时配置 `COMPUTE_API_URL`（含版本前缀，例如 https://compute.example.edu/v1）与 `COMPUTE_TOKEN`，资源端和平台互相信任该服务令牌。调度器发出以下请求。
+
+| 请求 | 约定 |
+| --- | --- |
+| GET /capacity | 整数 total、free，只统计训练池。设备拓扑、维护和同机多卡约束由算力端决定。 |
+| PUT /jobs/{id} | JSON 字段 cards（1–4）、artifact_id、runtime（course-base 或 dockerfile）。同一 ID 重试需幂等。卡数必须一次配齐，暂时无法满足返回 409 和 no_capacity。Dockerfile 隔离构建及镜像验证由资源适配端完成。 |
+| GET /jobs/{id} | 返回 id、status，可选 log_id、result_id、error。支持 running、cancelling、succeeded、failed、cancelled。终态表示设备清理完成。 |
+| DELETE /jobs/{id} | 幂等取消。应支持先到取消的记录，防止迟到的派发重启作业。成功返回同格式作业状态。 |
+| GET /artifacts/{key} | 供平台代理读取文本日志或 ZIP 结果。学生只可通过自己的任务访问。 |
+
+资源端按授权向平台 `GET /api/inputs/{artifact_id}` 取输入 ZIP，使用相同服务令牌。当前上传上限为 8 MiB，适合代码项目；大数据集和模型权重由课程另行配置。模拟环境保存代码包并生成模拟日志，不执行用户代码。远程模式禁用演示建单，队位可查；接入真实时长数据前，等待时间显示待估算。旧版 Python 单卡模拟接口保留用于历史示例，网站使用上述多卡接口。
+
+本地服务有后台调度循环。托管真实算力时配置周期调度触发 Worker 的 scheduled 入口，或由受信进程携带服务令牌周期性 POST /api/scheduler，以便无浏览器在线时也持续派发和对账。启用前先用两名学生真机验收 1 卡、4 卡、取消竞态、产物归属和重启恢复，并按实际课程并发完成压测。
